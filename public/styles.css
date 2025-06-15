@@ -1,0 +1,85 @@
+body{
+    background-color: #1e1e2f;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.chessboard {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(8, minmax(0, 1fr));
+    width: 400px;
+    height: 400px;
+    transform: rotate(0deg);
+}
+
+.piece.white {
+    color: white;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 1));
+}
+
+.piece.black {
+    color: black;
+}
+
+.flipped {
+    transform: rotate(180deg);
+}
+
+.square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.square.light {
+    background-color: #f0d9b5;
+}
+
+.square.dark {
+    background-color: #b58863;
+}
+
+.piece {
+    font-size: 36px;
+    cursor: pointer;
+}
+
+.piece.draggable {
+    cursor: grab;
+}
+
+.dragging {
+    opacity: 0.5;
+}
+
+/* Rotate pieces for black player */
+.flipped .piece {
+    transform: rotate(180deg);
+}
+
+/* .color-light{
+    background-color: #b58863;
+} */
+
+.color-light{
+    background-color: #f0d9b5;
+}
+
+#game-info{
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.05);
+}
+
+#role-display,
+#turn-display,
+#status-display {
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 2px black;
+}
+
+#status-display {
+      color: #cccccc;
+}

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><% title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" >
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="text-white">
+    <div class="container min-vh-100 d-flex align-items-center justify-content-center">
+        <div class="row w-100">
+            <!-- LEFT PANEL -->
+            <div class="col-md-4 d-flex flex-column justify-content-center align-items-start p-4">
+                <div id="game-info" class="mb-4">
+                    <p id="role-display" class="fs-5">Role: </p>
+                    <p id="turn-display" class="fs-5">Current Turn: </p>
+                    <p id="status-display" class="fs-6 mt-2">Status: waiting for another player...</p>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL -->
+            <div class="col-md-8 d-flex justify-content-center align-items-center">
+                <div class="bg-light chessboard" style="height: 60vmin; width: 60vmin;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.min.js" crossorigin="anonymous"></script>
+    <script src="/main.js"></script>
+
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content text-dark">
+        <div class="modal-header">
+            <h1 class="modal-title fs-5" id="exampleModalLabel">Message</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <!--filled by JS -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+        </div>
+        </div>
+    </div>
+    </div>
+</body>
+
+</html>
