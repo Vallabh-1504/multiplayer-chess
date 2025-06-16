@@ -72,16 +72,22 @@ module.exports = function(io, uniqueSocket){
                     else if(chess.isDraw()){
                         io.emit('gameOver', {reason: 'draw'});
                     }
+
+                    // automatically game restart
+                    setTimeout(()=>{
+                        chess.reset();
+                        io.emit('boardState', chess.fen());
+                        io.emit('statusUpdate', 'New Game Started');
+                    }, 3000);
+
                 }   
             }
             else{
-                console.log('invalid move: ', move);
                 uniqueSocket.emit('invalidMove', {move, reason: "Illegal move"}); // wrong move, so emit to that player only 
             }
         }
         catch(err){
-            console.log(err);
-            uniqueSocket.emit('invalidMove', {move, reason: 'Server error'});
+            uniqueSocket.emit('invalidMove', {move, reason: 'Illegal move'});
         }
     })
     

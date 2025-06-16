@@ -139,8 +139,8 @@ socket.on('move', (move)=>{
     renderBoard();
 });
 
-socket.on('invalidMove', (data) =>{
-    console.log('Invalid move attempted:', data);
+socket.on('invalidMove', ({data}) =>{
+    console.log(data);
     showModal('Invalid Move', data.reason);
 })
 
