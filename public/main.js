@@ -1,6 +1,8 @@
 const socket = io();
 const chess = new Chess();
-const boardElemet = document.querySelector('.chessboard');
+const boardElement = document.querySelector('.chessboard');
+
+const gameInfoDiv = document.getElementById('game-info');
 
 let draggedPiece = null;
 let sourceSquare = null;
@@ -9,6 +11,7 @@ let playerRole = null;
 const roleDisplay = document.getElementById('role-display');
 const turnDisplay = document.getElementById('turn-display');
 const statusDisplay = document.getElementById('status-display');
+
 
 const getPieceUnicode = (piece)=> {
     const unicodePieces = {
@@ -41,7 +44,7 @@ function showModal(title, message){
 
 const renderBoard = ()=> {
     const board = chess.board();
-    boardElemet.innerHTML = '';
+    boardElement.innerHTML = '';
     turnDisplay.innerText = `Current Turn: ${chess.turn() === 'w' ? 'White' : 'Black'}`;
 
     board.forEach((row, rowIdx) =>{
@@ -88,15 +91,15 @@ const renderBoard = ()=> {
                 }
             })
 
-            boardElemet.appendChild(squareElement);  
+            boardElement.appendChild(squareElement);  
         });
               
     });
 
     if(playerRole === 'b'){
-        boardElemet.classList.add('flipped');
+        boardElement.classList.add('flipped');
     }
-    else boardElemet.classList.remove('flipped');
+    else boardElement.classList.remove('flipped');
 };
 
 const handleMove = (source, target)=> {
@@ -108,7 +111,6 @@ const handleMove = (source, target)=> {
     socket.emit('move', move);
 
 }
-
 
 socket.on('playerRole', (role)=>{
     playerRole = role;
@@ -139,10 +141,14 @@ socket.on('move', (move)=>{
     renderBoard();
 });
 
-socket.on('invalidMove', ({data}) =>{
-    console.log(data);
-    showModal('Invalid Move', data.reason);
+socket.on('invalidMove', ({reason}) =>{
+    console.log(reason);
+    showModal('Invalid Move', reason);
 })
+
+if(typeof ROOM_ID !== 'undefined'){
+    socket.emit('joinGame', {roomId: ROOM_ID});
+};
 
 socket.on('gameOver', (data)=>{
     let message;
@@ -155,7 +161,6 @@ socket.on('gameOver', (data)=>{
 
     showModal('Game Over', message);
     statusDisplay.innerText = `Game Over: ${data.reason}` + (data.winner ? ` | Winner: ${data.winner}` : '');
-
-})
+});
 
 

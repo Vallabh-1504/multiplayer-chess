@@ -1,94 +1,143 @@
 const { Chess } = require('chess.js');
-const getGameStatus = require('../utils/gameStatus');
 
-// chess object instance
-const chess = new Chess();
+const GAME_LIST_KEY = 'games:active';
+const GAME_KEY_PREFIX = 'game:';
 
-// initialize players
-let players = {};
+module.exports = async function(io, uniqueSocket, redisClient){
+    uniqueSocket.join('lobby');
 
-module.exports = function(io, uniqueSocket){
-    console.log('socket.io connected');
-
-    uniqueSocket.emit('boardState', chess.fen());
-
-    // checking if players are there
-    if(!players.white){
-        players.white = uniqueSocket.id;
-        uniqueSocket.emit('playerRole', 'w'); 
-        // uniqueSocket.emit - only to one who sent it
-        // io.emit- to everyone including one who sent it
-    }   
-    else if(!players.black){
-        players.black = uniqueSocket.id;
-        uniqueSocket.emit('playerRole', 'b');
-    }
-    else{
-        uniqueSocket.emit('spectatorRole');
-    }
-
-    io.emit('statusUpdate', getGameStatus(chess, players));
-
-    // if disconnected, delete white and black both, currently game will not get over
-    uniqueSocket.on('disconnect', () =>{
-        if(uniqueSocket.id === players.white){
-            delete players.white;
-        }
-        else if(uniqueSocket.id === players.black){
-            delete players.black
-        }
-        io.emit('statusUpdate', getGameStatus(chess, players));
-    })
-
-    uniqueSocket.on('move', (move)=> {
+    uniqueSocket.on('joinGame', async ({roomId}) =>{
         try{
-            // check if move (movement) is played by valid person
-            if(chess.turn() === 'w' && uniqueSocket.id !== players.white) return;
-            if(chess.turn() === 'b' && uniqueSocket.id !== players.black) return;
+            const gameKey = GAME_KEY_PREFIX + roomId;
+            const game = await redisClient.hgetall(gameKey);
 
-            // person verified, now check if move is valid
-            const isValidMove = chess.move(move);
-
-            if(isValidMove){
-                io.emit('move', move);
-                io.emit('boardState', chess.fen());
-                io.emit('statusUpdate', getGameStatus(chess, players));
-                
-                // everytime check if game over
-                if(chess.isGameOver()){
-                    if(chess.isCheckmate()){
-                        const winner = chess.turn() === 'w' ? 'black' : 'white';
-                        io.emit('gameOver', {reason: 'checkmate', winner});
-                    }
-                    else if(chess.isStalemate()){
-                        io.emit('gameOver', {reason: 'stalemate'});
-                    }
-                    else if(chess.isThreefoldRepetition()){
-                        io.emit('gameOver', {reason: 'threefold repetition'});
-                    }
-                    else if(chess.isInsufficientMaterial()){
-                        io.emit('gameOver', {reason: 'insufficient material'});
-                    }
-                    else if(chess.isDraw()){
-                        io.emit('gameOver', {reason: 'draw'});
-                    }
-
-                    // automatically game restart
-                    setTimeout(()=>{
-                        chess.reset();
-                        io.emit('boardState', chess.fen());
-                        io.emit('statusUpdate', 'New Game Started');
-                    }, 3000);
-
-                }   
+            if(!game || !game.fen){
+                uniqueSocket.emit('invalidMove', {reason: "Game not found."});
+                return;
             }
-            else{
-                uniqueSocket.emit('invalidMove', {move, reason: "Illegal move"}); // wrong move, so emit to that player only 
+
+            const userId = uniqueSocket.userId;
+            uniqueSocket.leave('lobby');
+            uniqueSocket.join(roomId);
+            uniqueSocket.roomId = roomId;
+
+            let role = 'spectator';
+            if(game.playerWhite === userId) role = 'w';
+            else if(game.playerBlack === userId) role = 'b';
+            else if(!game.playerWhite || game.playerWhite === ""){
+                role = 'w';
+                await redisClient.hset(gameKey, 'playerWhite', userId);
+                game.playerWhite = userId;
+            } 
+            else if(!game.playerBlack || game.playerBlack === ""){
+                role = 'b';
+                await redisClient.hset(gameKey, 'playerBlack', userId);
+                game.playerBlack = userId
+            }
+
+            if(role === 'w' || role === 'b') uniqueSocket.emit('playerRole', role);
+            else uniqueSocket.emit('spectatorRole');
+
+            uniqueSocket.emit('boardState', game.fen);
+
+            let status = 'Game in progress';
+            if(!game.playerWhite || !game.playerBlack) {
+                status = 'Waiting for opponent...';
+            }
+            io.to(roomId).emit('statusUpdate', status);
+
+            io.to('lobby').emit('updateGameList', await getGameList(redisClient));
+        }
+        catch(err){
+            console.error(`Error joining game ${roomId}:`, err);
+        }
+    });
+
+    uniqueSocket.on('disconnect', () =>{
+        const roomId = uniqueSocket.roomId;
+        if(roomId){
+            io.to(roomId).emit('statusUpdate', 'Player disconnected. Waiting to reconnect...');
+        }
+    });
+
+    uniqueSocket.on('move', async (move) =>{
+        const roomId = uniqueSocket.roomId;
+        if(!roomId) return;
+    
+        try{
+            const gameKey = GAME_KEY_PREFIX + roomId;
+            const game = await redisClient.hgetall(gameKey);
+            const userId = uniqueSocket.userId;
+            
+            if(!game) return;
+
+            const chess = new Chess(game.fen);
+            const turn = chess.turn();
+
+            if((turn === 'w' && userId !== game.playerWhite) || (turn === 'b' && userId !== game.playerBlack)){
+                uniqueSocket.emit('invalidMove', { reason: "Not your turn." });
+                return;
+            }
+            
+            const moveResult = chess.move(move);
+            if(!moveResult){
+                uniqueSocket.emit('invalidMove', { reason: "Illegal move." });
+                return;
+            }
+
+            const newFen = chess.fen();
+            await redisClient.hset(gameKey, 'fen', newFen);
+
+            // broadcast move and new boardstate
+            io.to(roomId).emit('move', move);
+            io.to(roomId).emit('boardState', newFen);
+
+            if(chess.isGameOver()) {
+                let gameOverData = {};
+
+                if(chess.isCheckmate()){
+                    const winner = chess.turn() === 'w' ? 'black' : 'white';
+                    gameOverData = {reason: 'checkmate', winner};
+                }
+                else if(chess.isStalemate()){
+                    gameOverData = {reason: 'stalemate'};
+                }
+                else if(chess.isThreefoldRepetition()){
+                    gameOverData = {reason: 'threefold repetition'};
+                }
+                else if(chess.isInsufficientMaterial()){
+                    gameOverData = {reason: 'insufficient material'};
+                }
+                else if(chess.isDraw()){
+                    gameOverData = {reason: 'draw'};
+                }
+
+                io.to(roomId).emit('gameOver', gameOverData);
+
+                await redisClient.srem(GAME_LIST_KEY, roomId);
+                await redisClient.del(gameKey);
+
+                io.to('lobby').emit('updateGameList', await getGameList(redisClient));
             }
         }
         catch(err){
+            console.log('Error on move:', err)
             uniqueSocket.emit('invalidMove', {move, reason: 'Illegal move'});
         }
-    })
-    
+    })   
 };
+
+async function getGameList(redisClient) {
+    const gameIds = await redisClient.smembers(GAME_LIST_KEY);
+    const games = [];
+    for(const roomId of gameIds){
+        const gameData = await redisClient.hgetall(GAME_KEY_PREFIX + roomId);
+        if(gameData && gameData.fen){
+            let playerCount = 0;
+            if (gameData.playerWhite) playerCount++;
+            if (gameData.playerBlack) playerCount++;
+            games.push({ roomId, playerCount, status: gameData.status });
+        }
+    }
+    return games;
+}

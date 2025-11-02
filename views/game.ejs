@@ -1,0 +1,22 @@
+<% layout('layout') %>
+
+<div class="container min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="row w-100">
+        <div class="col-md-4 d-flex flex-column justify-content-center align-items-start p-4">
+            <div id="game-info" class="mb-4">
+                <p id="role-display" class="fs-5">Role: </p>
+                <p id="turn-display" class="fs-5">Current Turn: </p>
+                <p id="status-display" class="fs-6 mt-2">Status: waiting for another player...</p>
+            </div>
+        </div>
+
+        <div class="col-md-8 d-flex justify-content-center align-items-center">
+            <div class="bg-light chessboard" style="height: 60vmin; width: 60vmin;"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script> const ROOM_ID = "<%= roomId %>"; </script>
+<script src="/main.js"></script>
