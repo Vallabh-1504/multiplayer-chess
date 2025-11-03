@@ -9,13 +9,13 @@
             <h4 class="text-white-50 fs-6">Join an existing game:</h4>
             
             <div id="game-list" class="list-group">
-                <% if (games.length === 0) { %>
+                <% if(games.length === 0){ %>
                     <p id="no-games-msg" class="text-muted">No active games found.</p>
-                <% } else { %>
-                    <% games.forEach(game => { %>
+                <% } else{ %>
+                    <% games.forEach(game =>{ %>
                         <% 
                             let gameStatusText = `Players: ${game.playerCount}/2`;
-                            if (game.playerCount === 2) {
+                            if(game.playerCount === 2){
                                 gameStatusText = "Game in progress (Spectate)";
                             }
                         %>
@@ -31,4 +31,6 @@
 </div>
 
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="/modal.js" ></script>
 <script src="/lobby.js"></script>

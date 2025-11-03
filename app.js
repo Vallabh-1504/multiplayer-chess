@@ -24,7 +24,7 @@ const sessionMiddleware = session({
     cookie: {
         secure: false,
         httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 30, // 30 days
+        maxAge: 1000 * 60 * 60,
     },
 });
 

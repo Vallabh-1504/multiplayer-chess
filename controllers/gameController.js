@@ -1,10 +1,9 @@
-const { Chess } = require('chess.js');
+const {Chess} = require('chess.js');
 
 const GAME_LIST_KEY = 'games:active';
 const GAME_KEY_PREFIX = 'game:';
 
 module.exports = async function(io, uniqueSocket, redisClient){
-    uniqueSocket.join('lobby');
 
     uniqueSocket.on('joinGame', async ({roomId}) =>{
         try{
@@ -17,13 +16,16 @@ module.exports = async function(io, uniqueSocket, redisClient){
             }
 
             const userId = uniqueSocket.userId;
-            uniqueSocket.leave('lobby');
             uniqueSocket.join(roomId);
             uniqueSocket.roomId = roomId;
 
             let role = 'spectator';
-            if(game.playerWhite === userId) role = 'w';
-            else if(game.playerBlack === userId) role = 'b';
+            if(game.playerWhite === userId){
+                role = 'w';
+            }
+            else if(game.playerBlack === userId){
+                role = 'b';
+            }
             else if(!game.playerWhite || game.playerWhite === ""){
                 role = 'w';
                 await redisClient.hset(gameKey, 'playerWhite', userId);
@@ -35,9 +37,7 @@ module.exports = async function(io, uniqueSocket, redisClient){
                 game.playerBlack = userId
             }
 
-            if(role === 'w' || role === 'b') uniqueSocket.emit('playerRole', role);
-            else uniqueSocket.emit('spectatorRole');
-
+            uniqueSocket.emit('playerRole', role);
             uniqueSocket.emit('boardState', game.fen);
 
             let status = 'Game in progress';
@@ -45,8 +45,6 @@ module.exports = async function(io, uniqueSocket, redisClient){
                 status = 'Waiting for opponent...';
             }
             io.to(roomId).emit('statusUpdate', status);
-
-            io.to('lobby').emit('updateGameList', await getGameList(redisClient));
         }
         catch(err){
             console.error(`Error joining game ${roomId}:`, err);
@@ -92,6 +90,7 @@ module.exports = async function(io, uniqueSocket, redisClient){
             io.to(roomId).emit('move', move);
             io.to(roomId).emit('boardState', newFen);
 
+            // everytime check game over
             if(chess.isGameOver()) {
                 let gameOverData = {};
 
@@ -116,8 +115,6 @@ module.exports = async function(io, uniqueSocket, redisClient){
 
                 await redisClient.srem(GAME_LIST_KEY, roomId);
                 await redisClient.del(gameKey);
-
-                io.to('lobby').emit('updateGameList', await getGameList(redisClient));
             }
         }
         catch(err){
@@ -126,18 +123,3 @@ module.exports = async function(io, uniqueSocket, redisClient){
         }
     })   
 };
-
-async function getGameList(redisClient) {
-    const gameIds = await redisClient.smembers(GAME_LIST_KEY);
-    const games = [];
-    for(const roomId of gameIds){
-        const gameData = await redisClient.hgetall(GAME_KEY_PREFIX + roomId);
-        if(gameData && gameData.fen){
-            let playerCount = 0;
-            if (gameData.playerWhite) playerCount++;
-            if (gameData.playerBlack) playerCount++;
-            games.push({ roomId, playerCount, status: gameData.status });
-        }
-    }
-    return games;
-}

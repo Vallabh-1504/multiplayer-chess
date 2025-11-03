@@ -2,8 +2,6 @@ const socket = io();
 const chess = new Chess();
 const boardElement = document.querySelector('.chessboard');
 
-const gameInfoDiv = document.getElementById('game-info');
-
 let draggedPiece = null;
 let sourceSquare = null;
 let playerRole = null;
@@ -30,16 +28,6 @@ const getPieceUnicode = (piece)=> {
     };
 
     return unicodePieces[piece.type] || '';
-};
-
-function showModal(title, message){
-    const modalElement = document.getElementById('exampleModal');
-    const modal = new bootstrap.Modal(modalElement);
-
-    document.querySelector('#exampleModalLabel').textContent = title;
-    document.querySelector('.modal-body').textContent = message;
-
-    modal.show();
 };
 
 const renderBoard = ()=> {
@@ -114,17 +102,21 @@ const handleMove = (source, target)=> {
 
 socket.on('playerRole', (role)=>{
     playerRole = role;
-    roleDisplay.innerText = `Role: ${role === 'w' ? 'white' : 'black'}`;
-    statusDisplay.innerText = 'waiting for opponent..';
-    renderBoard();
-});
+    
+    if(role == 'w'){
+        roleDisplay.innerText = 'Role: White';
+        statusDisplay.innerText = 'Waiting for opponent..';
+    }
+    else if(role === 'b'){
+        roleDisplay.innerText = 'Role: Black';
+        statusDisplay.innerText = 'Waiting for opponent..';
+    }
+    else{
+        roleDisplay.innerText = 'Role: Spectator';
+        statusDisplay.innerText = 'Spectating the game';
+    }
 
-socket.on('spectatorRole', ()=>{
-    playerRole = null;
-    roleDisplay.innerText = `Role: Spectator`;
-    statusDisplay.innerText = 'Spectating the game';
     renderBoard();
-
 });
 
 socket.on('boardState', (fen)=>{

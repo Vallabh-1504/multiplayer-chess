@@ -11,10 +11,13 @@
 </head>
 <body class="text-white bg-dark d-flex flex-column min-vh-100">
 
+    <%- include('partials/header') %>
+
     <main class="container my-5 flex-grow-1">
         <%- body %>
     </main>
 
+    <!-- Bootstrap Modal -->
     <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content text-dark">
@@ -23,7 +26,8 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    </div>
+                    <!-- filled by JS -->
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
                 </div>
@@ -31,6 +35,8 @@
         </div>
     </div>
     
+    <%- include('partials/fotter') %>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.min.js"></script>
 </body>
 </html>
