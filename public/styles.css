@@ -83,3 +83,38 @@ body{
 #status-display {
       color: #cccccc;
 }
+
+#game-info{
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.05);
+    width: 100%;
+}
+
+#chat-box {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.05);
+}
+
+#chat-messages {
+    height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.chat-message {
+    margin-bottom: 5px;
+    word-wrap: break-word;
+}
+
+.chat-message strong {
+    color: #a9c7db;
+}

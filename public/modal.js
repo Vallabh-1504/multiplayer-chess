@@ -7,5 +7,3 @@ const showModal = (title, message) =>{
 
     modal.show();
 };
-
-module.exports = showModal;

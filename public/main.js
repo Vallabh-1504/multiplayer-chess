@@ -10,6 +10,10 @@ const roleDisplay = document.getElementById('role-display');
 const turnDisplay = document.getElementById('turn-display');
 const statusDisplay = document.getElementById('status-display');
 
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const chatMessages = document.getElementById('chat-messages');
+
 
 const getPieceUnicode = (piece)=> {
     const unicodePieces = {
@@ -100,6 +104,30 @@ const handleMove = (source, target)=> {
 
 }
 
+const addChatMessage = (sender, message) =>{
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('chat-message');
+    
+    messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
+    
+    chatMessages.appendChild(messageElement);
+    
+    // auto-scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+if(chatForm){
+    chatForm.addEventListener('submit', (e) =>{
+        e.preventDefault(); // Prevent page reload
+        const message = chatInput.value.trim();
+        
+        if(message){
+            socket.emit('chatMessage', { message: message });
+            chatInput.value = ''; // Clear the input field
+        }
+    });
+}
+
 socket.on('playerRole', (role)=>{
     playerRole = role;
     
@@ -153,6 +181,23 @@ socket.on('gameOver', (data)=>{
 
     showModal('Game Over', message);
     statusDisplay.innerText = `Game Over: ${data.reason}` + (data.winner ? ` | Winner: ${data.winner}` : '');
+});
+
+socket.on('newChatMessage', ({ sender, message }) => {
+    addChatMessage(sender, message);
+});
+
+socket.on('chatError', (errorMessage) => {
+    // Optionally show a small error to the user
+    console.warn(errorMessage);
+});
+
+socket.on('chatHistory', (history) =>{
+    chatMessages.innerHTML = '';
+
+    history.forEach(entry =>{
+        addChatMessage(entry.sender, entry.message);
+    });
 });
 
 

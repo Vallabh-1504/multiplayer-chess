@@ -2,6 +2,7 @@ const {Chess} = require('chess.js');
 
 const GAME_LIST_KEY = 'games:active';
 const GAME_KEY_PREFIX = 'game:';
+const CHAT_KEY_PREFIX = 'chat:';
 
 module.exports = async function(io, uniqueSocket, redisClient){
 
@@ -45,6 +46,12 @@ module.exports = async function(io, uniqueSocket, redisClient){
                 status = 'Waiting for opponent...';
             }
             io.to(roomId).emit('statusUpdate', status);
+
+            const chatKey = CHAT_KEY_PREFIX + roomId;
+            const chatHistory = await redisClient.lrange(chatKey, 0, -1);
+            const parsedHistory = chatHistory.map(item => JSON.parse(item));
+
+            uniqueSocket.emit('chatHistory', parsedHistory);
         }
         catch(err){
             console.error(`Error joining game ${roomId}:`, err);
@@ -113,6 +120,10 @@ module.exports = async function(io, uniqueSocket, redisClient){
 
                 io.to(roomId).emit('gameOver', gameOverData);
 
+                // chat befor game deletion
+                const chatKey = CHAT_KEY_PREFIX + roomId;
+                await redisClient.del(chatKey);
+
                 await redisClient.srem(GAME_LIST_KEY, roomId);
                 await redisClient.del(gameKey);
             }
@@ -121,5 +132,40 @@ module.exports = async function(io, uniqueSocket, redisClient){
             console.log('Error on move:', err)
             uniqueSocket.emit('invalidMove', {move, reason: 'Illegal move'});
         }
-    })   
+    });
+    
+    // chat event
+    uniqueSocket.on('chatMessage', async (data) =>{
+        const roomId = uniqueSocket.roomId;
+        if(!roomId) return;
+
+        const message = data.message.trim();
+        if(!message) return;
+
+        try{
+            const gameKey = GAME_KEY_PREFIX + roomId;
+            const game = await redisClient.hgetall(gameKey);
+            const userId = uniqueSocket.userId;
+
+            let senderName = 'Spectator';
+            if (game && game.playerWhite === userId) senderName = 'White';
+            else if (game && game.playerBlack === userId) senderName = 'Black';
+
+            const chatKey = CHAT_KEY_PREFIX + roomId;
+            const chatEntry = {
+                sender: senderName,
+                message: message
+            };
+
+            await redisClient.rpush(chatKey, JSON.stringify(chatEntry));
+            // keeping only 50 messages
+            await redisClient.ltrim(chatKey, -50, -1);
+
+            io.to(roomId).emit('newChatMessage', chatEntry);
+        }
+        catch(err){
+            console.error("Error handling chat message:", err);
+            uniqueSocket.emit('chatError', 'Could not send message.');
+        }
+    });
 };
