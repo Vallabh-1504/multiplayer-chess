@@ -2,8 +2,8 @@ const http = require('http');
 const socketio = require('socket.io');
 const {app, sessionMiddleware} = require('./app');
 const gameController = require('./controllers/gameController');
-const {v4: uuid} = require('uuid');
-const {redisClient} = require('./utils/redisClient');
+const {redisClient} = require('./utilities/redisClient');
+const {randomid} = require('ksort-id');
 
 const PORT = process.env.PORT || 8000;
 
@@ -25,7 +25,7 @@ io.use((socket, next) => {
 io.on('connection', (uniqueSocket)=> {
     const session = uniqueSocket.request.session;
     if(!session.userId){
-        session.userId = uuid();
+        session.userId = randomid(6);
         session.save();
     }
     uniqueSocket.userId = session.userId;

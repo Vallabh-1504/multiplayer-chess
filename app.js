@@ -4,7 +4,7 @@ const session = require('express-session');
 const ejsMate = require('ejs-mate');
 const connectRedis = require('connect-redis')
 const RedisStore = connectRedis(session);
-const { redisClient } = require('./utils/redisClient');
+const { redisClient } = require('./utilities/redisClient');
 const indexRoutes = require('./routes/index');
 
 const secret = process.env.SESSION_SECRET || "HELLO";

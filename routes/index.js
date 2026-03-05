@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const {v4: uuid} = require('uuid');
+const {randomid} = require('ksort-id');
 
 const GAME_LIST_KEY = 'games:active';
 const GAME_KEY_PREFIX = 'game:';
@@ -42,15 +42,21 @@ router.get('/game/:roomId', (req, res) =>{
 
 router.post('/game/create', async (req, res) =>{
     const redisClient = req.app.get('redisClient');
+    const {mode} = req.body || {}; // Request may be empty for multiplayer create calls
 
     try{
-        const roomId = uuid();
+        const roomId = randomid(6);
         const newGame = {
             fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             playerWhite: '',
             playerBlack: '',
             status: 'waiting'
         };
+
+        if(mode === 'ai'){
+            newGame.playerBlack = 'stockfish';
+            newGame.status = 'Game in progress'; // Ready immediately
+        }
 
         await redisClient.hset(GAME_KEY_PREFIX + roomId, newGame);
         await redisClient.sadd(GAME_LIST_KEY, roomId);

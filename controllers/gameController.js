@@ -1,4 +1,5 @@
 const {Chess} = require('chess.js');
+const {getBestMove} = require('../utilities/chessAI');
 
 const GAME_LIST_KEY = 'games:active';
 const GAME_KEY_PREFIX = 'game:';
@@ -27,30 +28,43 @@ module.exports = async function(io, uniqueSocket, redisClient){
             else if(game.playerBlack === userId){
                 role = 'b';
             }
-            else if(!game.playerWhite || game.playerWhite === ""){
-                role = 'w';
-                await redisClient.hset(gameKey, 'playerWhite', userId);
-                game.playerWhite = userId;
-            } 
-            else if(!game.playerBlack || game.playerBlack === ""){
-                role = 'b';
-                await redisClient.hset(gameKey, 'playerBlack', userId);
-                game.playerBlack = userId
+            else if (game.playerBlack === 'stockfish') {
+                // If Black is AI, user MUST be White (unless White is already taken by someone else)
+                if (!game.playerWhite || game.playerWhite === "") {
+                    role = 'w';
+                    await redisClient.hset(gameKey, 'playerWhite', userId);
+                    game.playerWhite = userId;
+                }
+            }
+            else {
+                // Standard Multiplayer assignment
+                if(!game.playerWhite || game.playerWhite === ""){
+                    role = 'w';
+                    await redisClient.hset(gameKey, 'playerWhite', userId);
+                }
+                else if(!game.playerBlack || game.playerBlack === ""){
+                    role = 'b';
+                    await redisClient.hset(gameKey, 'playerBlack', userId);
+                }
             }
 
             uniqueSocket.emit('playerRole', role);
             uniqueSocket.emit('boardState', game.fen);
 
             let status = 'Game in progress';
-            if(!game.playerWhite || !game.playerBlack) {
+            if(game.playerBlack === 'stockfish'){
+                status = 'Playing against Stockfish (AI)';
+            }
+            else if(!game.playerWhite || !game.playerBlack){
                 status = 'Waiting for opponent...';
             }
+
             io.to(roomId).emit('statusUpdate', status);
 
+            // load chat
             const chatKey = CHAT_KEY_PREFIX + roomId;
             const chatHistory = await redisClient.lrange(chatKey, 0, -1);
             const parsedHistory = chatHistory.map(item => JSON.parse(item));
-
             uniqueSocket.emit('chatHistory', parsedHistory);
         }
         catch(err){
@@ -79,9 +93,19 @@ module.exports = async function(io, uniqueSocket, redisClient){
             const chess = new Chess(game.fen);
             const turn = chess.turn();
 
-            if((turn === 'w' && userId !== game.playerWhite) || (turn === 'b' && userId !== game.playerBlack)){
-                uniqueSocket.emit('invalidMove', { reason: "Not your turn." });
-                return;
+            const isAiGame = game.playerBlack === 'stockfish';
+
+            if(isAiGame){
+                if(turn !== 'w' || userId !== game.playerWhite){
+                    uniqueSocket.emit('invalidMove', {reason: "Not your turn."});
+                    return;
+                }
+            }
+            else{
+                if((turn === 'w' && userId !== game.playerWhite) || (turn === 'b' && userId !== game.playerBlack)){
+                    uniqueSocket.emit('invalidMove', {reason: "Not your turn."});
+                    return;
+                }
             }
             
             const moveResult = chess.move(move);
@@ -90,42 +114,36 @@ module.exports = async function(io, uniqueSocket, redisClient){
                 return;
             }
 
-            const newFen = chess.fen();
+            let newFen = chess.fen();
             await redisClient.hset(gameKey, 'fen', newFen);
 
             // broadcast move and new boardstate
             io.to(roomId).emit('move', move);
             io.to(roomId).emit('boardState', newFen);
 
-            // everytime check game over
-            if(chess.isGameOver()) {
-                let gameOverData = {};
+            // Check Game Over after Human Move
+            if(await handleGameOver(chess, io, roomId, redisClient, gameKey)) return;
 
-                if(chess.isCheckmate()){
-                    const winner = chess.turn() === 'w' ? 'black' : 'white';
-                    gameOverData = {reason: 'checkmate', winner};
-                }
-                else if(chess.isStalemate()){
-                    gameOverData = {reason: 'stalemate'};
-                }
-                else if(chess.isThreefoldRepetition()){
-                    gameOverData = {reason: 'threefold repetition'};
-                }
-                else if(chess.isInsufficientMaterial()){
-                    gameOverData = {reason: 'insufficient material'};
-                }
-                else if(chess.isDraw()){
-                    gameOverData = {reason: 'draw'};
-                }
+            // 3. PROCESS AI MOVE (If applicable)
+            if(isAiGame && chess.turn() === 'b'){
+                // We don't want to block the event loop, but we need to wait for the move// A small timeout allows the client UI to update before the AI respondssetTimeout(async () => {
+                try{
+                    const aiMoveNotation = await getBestMove(newFen);
+                    const aiMove = chess.move(aiMoveNotation);
 
-                io.to(roomId).emit('gameOver', gameOverData);
-
-                // chat befor game deletion
-                const chatKey = CHAT_KEY_PREFIX + roomId;
-                await redisClient.del(chatKey);
-
-                await redisClient.srem(GAME_LIST_KEY, roomId);
-                await redisClient.del(gameKey);
+                    if(aiMove){
+                        newFen = chess.fen();
+                        await redisClient.hset(gameKey, 'fen', newFen);
+                        
+                        io.to(roomId).emit('move', aiMove);
+                        io.to(roomId).emit('boardState', newFen);
+                        // Check Game Over after AI Move
+                        if(await handleGameOver(chess, io, roomId, redisClient, gameKey)) return;
+                    }
+                }
+                catch (error){
+                    console.error("AI Move Error:", error);
+                }
             }
         }
         catch(err){
@@ -133,7 +151,42 @@ module.exports = async function(io, uniqueSocket, redisClient){
             uniqueSocket.emit('invalidMove', {move, reason: 'Illegal move'});
         }
     });
-    
+
+    // everytime check game over
+    const handleGameOver = async (chessInstance, io, roomId, redisClient, gameKey) =>{
+        if(chessInstance.isGameOver()) {
+            let gameOverData = {};
+
+            if(chessInstance.isCheckmate()){
+                const winner = chessInstance.turn() === 'w' ? 'black' : 'white';
+                gameOverData = {reason: 'checkmate', winner};
+            }
+            else if(chessInstance.isStalemate()){
+                gameOverData = {reason: 'stalemate'};
+            }
+            else if(chessInstance.isThreefoldRepetition()){
+                gameOverData = {reason: 'threefold repetition'};
+            }
+            else if(chessInstance.isInsufficientMaterial()){
+                gameOverData = {reason: 'insufficient material'};
+            }
+            else if(chessInstance.isDraw()){
+                gameOverData = {reason: 'draw'};
+            }
+
+            io.to(roomId).emit('gameOver', gameOverData);
+
+            // chat befor game deletion
+            const chatKey = CHAT_KEY_PREFIX + roomId;
+            await redisClient.del(chatKey);
+
+            await redisClient.srem(GAME_LIST_KEY, roomId);
+            await redisClient.del(gameKey);
+            return true;
+        }
+        return false;
+    }
+
     // chat event
     uniqueSocket.on('chatMessage', async (data) =>{
         const roomId = uniqueSocket.roomId;
